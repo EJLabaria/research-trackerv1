@@ -117,19 +117,33 @@ def main():
         selected = st.selectbox("Pick a researcher", filtered["name"].tolist())
         row = filtered[filtered["name"] == selected].iloc[0]
 
-        # Use link_button here instead of relying on the table's clickable
-        # link columns -- Streamlit's table renders inside its own internal
-        # frame, and Google blocks links that try to open inside any frame.
-        # link_button opens a real new tab and sidesteps that entirely.
+        # Rendered as plain HTML links rather than st.link_button -- Streamlit's
+        # link_button adds a layer of JS handling around the click, and that
+        # extra step is what triggers Google's strict anti-framing check on a
+        # normal click (this is also why Ctrl/Cmd+click worked around it --
+        # that bypasses JS and tells the browser to open a new tab directly).
+        # A plain <a target="_blank"> tag doesn't have that extra step.
         col1, col2 = st.columns(2)
         with col1:
             gh = row.get("github_url", "")
             if isinstance(gh, str) and gh.strip():
-                st.link_button("Open GitHub", gh)
+                st.markdown(
+                    f'<a href="{gh}" target="_blank" rel="noopener noreferrer">'
+                    f'<button style="width:100%;padding:0.5em;border-radius:6px;'
+                    f'border:1px solid #ccc;background:#f0f2f6;cursor:pointer;">'
+                    f'Open GitHub</button></a>',
+                    unsafe_allow_html=True,
+                )
         with col2:
             li = row.get("linkedin_search_url", "")
             if isinstance(li, str) and li.strip():
-                st.link_button("Search LinkedIn", li)
+                st.markdown(
+                    f'<a href="{li}" target="_blank" rel="noopener noreferrer">'
+                    f'<button style="width:100%;padding:0.5em;border-radius:6px;'
+                    f'border:1px solid #ccc;background:#f0f2f6;cursor:pointer;">'
+                    f'Search LinkedIn</button></a>',
+                    unsafe_allow_html=True,
+                )
 
         st.json(row.dropna().to_dict())
     else:
