@@ -87,6 +87,7 @@ def main():
         filtered = filtered[filtered["github_url"].notna() & (filtered["github_url"] != "")]
 
     st.write(f"Showing {len(filtered)} of {len(df)} researchers")
+    st.caption("Tip: links in the table below may not open reliably due to browser security restrictions. Select a researcher below the table for working GitHub/LinkedIn buttons.")
 
     # -- Main table --
     display_cols = [c for c in [
@@ -115,6 +116,21 @@ def main():
     if len(filtered) > 0:
         selected = st.selectbox("Pick a researcher", filtered["name"].tolist())
         row = filtered[filtered["name"] == selected].iloc[0]
+
+        # Use link_button here instead of relying on the table's clickable
+        # link columns -- Streamlit's table renders inside its own internal
+        # frame, and Google blocks links that try to open inside any frame.
+        # link_button opens a real new tab and sidesteps that entirely.
+        col1, col2 = st.columns(2)
+        with col1:
+            gh = row.get("github_url", "")
+            if isinstance(gh, str) and gh.strip():
+                st.link_button("Open GitHub", gh)
+        with col2:
+            li = row.get("linkedin_search_url", "")
+            if isinstance(li, str) and li.strip():
+                st.link_button("Search LinkedIn", li)
+
         st.json(row.dropna().to_dict())
     else:
         st.info("No researchers match the current filters.")
