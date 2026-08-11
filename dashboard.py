@@ -87,29 +87,63 @@ def main():
         filtered = filtered[filtered["github_url"].notna() & (filtered["github_url"] != "")]
 
     st.write(f"Showing {len(filtered)} of {len(df)} researchers")
-    st.caption("Tip: links in the table below may not open reliably due to browser security restrictions. Select a researcher below the table for working GitHub/LinkedIn buttons.")
 
     # -- Main table --
+    # Rendered as a plain HTML table (not st.dataframe) so that GitHub and
+    # LinkedIn links are genuine, un-wrapped <a> tags on the page. Streamlit's
+    # interactive st.dataframe renders through its own internal grid
+    # component, and links clicked from inside it get treated the same as a
+    # link inside any other embedded frame -- which is exactly what Google's
+    # search page blocks, regardless of click type. A plain HTML table has
+    # no such wrapping, so its links behave like any normal link on any
+    # normal webpage.
+    #
+    # Trade-off: this table isn't click-to-sort by column the way
+    # st.dataframe is. The sidebar filters and the default citation-count
+    # sort below make up for most of that.
     display_cols = [c for c in [
         "name", "source", "affiliation", "paper_count", "h_index",
         "citation_count", "github_url", "linkedin_search_url",
     ] if c in filtered.columns]
 
-    st.dataframe(
-        filtered[display_cols].sort_values(
-            by="citation_count" if "citation_count" in display_cols else display_cols[0],
-            ascending=False,
-        ),
-        use_container_width=True,
-        hide_index=True,
-        column_config={
-            "github_url": st.column_config.LinkColumn("GitHub"),
-            "linkedin_search_url": st.column_config.LinkColumn("LinkedIn Search"),
-            "citation_count": st.column_config.NumberColumn("Citations"),
-            "h_index": st.column_config.NumberColumn("H-Index"),
-            "paper_count": st.column_config.NumberColumn("Papers"),
-        },
+    display_labels = {
+        "name": "Name", "source": "Source", "affiliation": "Affiliation",
+        "paper_count": "Papers", "h_index": "H-Index", "citation_count": "Citations",
+        "github_url": "GitHub", "linkedin_search_url": "LinkedIn Search",
+    }
+
+    table_df = filtered[display_cols].sort_values(
+        by="citation_count" if "citation_count" in display_cols else display_cols[0],
+        ascending=False,
+    ).copy()
+
+    if "github_url" in table_df.columns:
+        table_df["github_url"] = table_df["github_url"].apply(
+            lambda u: f'<a href="{u}" target="_blank" rel="noopener noreferrer">GitHub</a>' if isinstance(u, str) and u.strip() else ""
+        )
+    if "linkedin_search_url" in table_df.columns:
+        table_df["linkedin_search_url"] = table_df["linkedin_search_url"].apply(
+            lambda u: f'<a href="{u}" target="_blank" rel="noopener noreferrer">Search</a>' if isinstance(u, str) and u.strip() else ""
+        )
+
+    table_df = table_df.rename(columns=display_labels)
+
+    html_table = table_df.to_html(escape=False, index=False, na_rep="")
+    st.markdown(
+        """
+        <style>
+        .researcher-table-wrap { max-height: 600px; overflow-y: auto; }
+        .researcher-table-wrap table { width: 100%; border-collapse: collapse; font-size: 0.85em; }
+        .researcher-table-wrap th { background-color: #2E4057; color: white; text-align: left;
+            padding: 8px; position: sticky; top: 0; }
+        .researcher-table-wrap td { padding: 6px 8px; border-bottom: 1px solid #eee; }
+        .researcher-table-wrap tr:nth-child(even) { background-color: #F8F9FB; }
+        .researcher-table-wrap a { color: #FF4B4B; text-decoration: none; font-weight: 600; }
+        </style>
+        """,
+        unsafe_allow_html=True,
     )
+    st.markdown(f'<div class="researcher-table-wrap">{html_table}</div>', unsafe_allow_html=True)
 
     # -- Detail view for one author --
     st.subheader("Researcher detail")
@@ -117,33 +151,18 @@ def main():
         selected = st.selectbox("Pick a researcher", filtered["name"].tolist())
         row = filtered[filtered["name"] == selected].iloc[0]
 
-        # Rendered as plain HTML links rather than st.link_button -- Streamlit's
-        # link_button adds a layer of JS handling around the click, and that
-        # extra step is what triggers Google's strict anti-framing check on a
-        # normal click (this is also why Ctrl/Cmd+click worked around it --
-        # that bypasses JS and tells the browser to open a new tab directly).
-        # A plain <a target="_blank"> tag doesn't have that extra step.
+        # st.link_button, not a plain HTML link -- Ctrl/Cmd+click reliably
+        # works with this version; a plain <a> tag made things worse, not
+        # better, so reverted back to this after testing both.
         col1, col2 = st.columns(2)
         with col1:
             gh = row.get("github_url", "")
             if isinstance(gh, str) and gh.strip():
-                st.markdown(
-                    f'<a href="{gh}" target="_blank" rel="noopener noreferrer">'
-                    f'<button style="width:100%;padding:0.5em;border-radius:6px;'
-                    f'border:1px solid #ccc;background:#f0f2f6;cursor:pointer;">'
-                    f'Open GitHub</button></a>',
-                    unsafe_allow_html=True,
-                )
+                st.link_button("Open GitHub", gh)
         with col2:
             li = row.get("linkedin_search_url", "")
             if isinstance(li, str) and li.strip():
-                st.markdown(
-                    f'<a href="{li}" target="_blank" rel="noopener noreferrer">'
-                    f'<button style="width:100%;padding:0.5em;border-radius:6px;'
-                    f'border:1px solid #ccc;background:#f0f2f6;cursor:pointer;">'
-                    f'Search LinkedIn</button></a>',
-                    unsafe_allow_html=True,
-                )
+                st.link_button("Search LinkedIn", li)
 
         st.json(row.dropna().to_dict())
     else:
