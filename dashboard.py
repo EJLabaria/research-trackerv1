@@ -52,6 +52,18 @@ def main():
     # -- Sidebar filters --
     st.sidebar.header("Filters")
 
+    # Email column is only ever included in what gets sent to the browser
+    # if this password matches -- unauthenticated visitors never receive
+    # the email data at all, not even hidden in the page somewhere.
+    show_emails = False
+    if "email" in df.columns:
+        admin_password = st.sidebar.text_input("Admin password (to view emails)", type="password")
+        correct_password = st.secrets.get("ADMIN_PASSWORD", None)
+        if correct_password and admin_password == correct_password:
+            show_emails = True
+        elif admin_password:
+            st.sidebar.error("Incorrect password")
+
     if "source" in df.columns:
         sources = sorted(set(s.strip() for val in df["source"].dropna() for s in str(val).split(";")))
         selected_sources = st.sidebar.multiselect("Dataset / Section", sources, default=sources)
@@ -67,6 +79,12 @@ def main():
         min_citations = st.sidebar.slider("Min citation count", 0, max_citations, 0)
 
     has_github = st.sidebar.checkbox("Has GitHub only")
+
+    has_email = False
+    exclude_flagged = False
+    if show_emails:
+        has_email = st.sidebar.checkbox("Has email only")
+        exclude_flagged = st.sidebar.checkbox("Hide flagged-for-review emails")
 
     # -- Apply filters --
     filtered = df.copy()
@@ -85,6 +103,10 @@ def main():
         filtered = filtered[filtered["citation_count"].fillna(0) >= min_citations]
     if has_github and "github_url" in filtered.columns:
         filtered = filtered[filtered["github_url"].notna() & (filtered["github_url"] != "")]
+    if has_email and "email" in filtered.columns:
+        filtered = filtered[filtered["email"].notna() & (filtered["email"] != "")]
+    if exclude_flagged and "email_needs_manual_review" in filtered.columns:
+        filtered = filtered[filtered["email_needs_manual_review"] != "yes"]
 
     st.write(f"Showing {len(filtered)} of {len(df)} researchers")
 
@@ -105,11 +127,16 @@ def main():
         "name", "source", "affiliation", "paper_count", "h_index",
         "citation_count", "github_url", "linkedin_search_url",
     ] if c in filtered.columns]
+    if show_emails and "email" in filtered.columns:
+        # Inserted after citation_count, before github_url, matching the
+        # original column order -- only happens when the password matched.
+        insert_at = display_cols.index("github_url") if "github_url" in display_cols else len(display_cols)
+        display_cols.insert(insert_at, "email")
 
     display_labels = {
         "name": "Name", "source": "Source", "affiliation": "Affiliation",
         "paper_count": "Papers", "h_index": "H-Index", "citation_count": "Citations",
-        "github_url": "GitHub", "linkedin_search_url": "LinkedIn Search",
+        "email": "Email", "github_url": "GitHub", "linkedin_search_url": "LinkedIn Search",
     }
 
     table_df = filtered[display_cols].sort_values(
@@ -125,8 +152,22 @@ def main():
         table_df["linkedin_search_url"] = table_df["linkedin_search_url"].apply(
             lambda u: f'<a href="{u}" target="_blank" rel="noopener noreferrer">Search</a>' if isinstance(u, str) and u.strip() else ""
         )
+    if "email" in table_df.columns:
+        # Show a small warning marker next to emails flagged as a possible
+        # name mismatch, so it's visible right in the table, not just in
+        # the raw CSV.
+        review_flags = filtered.loc[table_df.index, "email_needs_manual_review"] if "email_needs_manual_review" in filtered.columns else None
+        def format_email(idx):
+            val = table_df.at[idx, "email"]
+            if not isinstance(val, str) or not val.strip():
+                return ""
+            if review_flags is not None and review_flags.get(idx) == "yes":
+                return f'{val} <span title="Commit author name did not match -- verify before using" style="color:#E07B00;">⚠️</span>'
+            return val
+        table_df["email"] = [format_email(idx) for idx in table_df.index]
 
     table_df = table_df.rename(columns=display_labels)
+
 
     html_table = table_df.to_html(escape=False, index=False, na_rep="")
     st.markdown(
