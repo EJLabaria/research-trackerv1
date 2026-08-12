@@ -173,8 +173,8 @@ def main():
     st.markdown(
         """
         <style>
-        .researcher-table-wrap { max-height: 600px; overflow-y: auto; }
-        .researcher-table-wrap table { width: 100%; border-collapse: collapse; font-size: 0.85em; }
+        .researcher-table-wrap { max-height: 600px; overflow-y: auto; overflow-x: auto; }
+        .researcher-table-wrap table { width: max-content; min-width: 100%; border-collapse: collapse; font-size: 0.85em; }
         .researcher-table-wrap th { background-color: #2E4057; color: white; text-align: left;
             padding: 8px; position: sticky; top: 0; }
         .researcher-table-wrap td { padding: 6px 8px; border-bottom: 1px solid #eee; }
