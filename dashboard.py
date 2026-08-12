@@ -108,7 +108,17 @@ def main():
     if exclude_flagged and "email_needs_manual_review" in filtered.columns:
         filtered = filtered[filtered["email_needs_manual_review"] != "yes"]
 
-    st.write(f"Showing {len(filtered)} of {len(df)} researchers")
+    # Limit how many rows public (non-Cypher) viewers can see. Applied
+    # after all other filters, sorted by citation count first so the
+    # most notable people are the ones shown in the limited public view.
+    PUBLIC_ROW_LIMIT = 75
+    total_matching = len(filtered)
+    if not show_emails and total_matching > PUBLIC_ROW_LIMIT:
+        sort_col = "citation_count" if "citation_count" in filtered.columns else filtered.columns[0]
+        filtered = filtered.sort_values(by=sort_col, ascending=False).head(PUBLIC_ROW_LIMIT)
+        st.info(f"Showing top {PUBLIC_ROW_LIMIT} of {total_matching} researchers. Enter the Cypher in the sidebar to see all.")
+    else:
+        st.write(f"Showing {len(filtered)} of {len(df)} researchers")
 
     # -- Main table --
     # Rendered as a plain HTML table (not st.dataframe) so that GitHub and
