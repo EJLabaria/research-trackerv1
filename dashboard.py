@@ -57,7 +57,7 @@ def main():
     # the email data at all, not even hidden in the page somewhere.
     show_emails = False
     if "email" in df.columns:
-        admin_password = st.sidebar.text_input("Admin password (to view emails)", type="password")
+        admin_password = st.sidebar.text_input("Enter the Cypher (to see full data)", type="password")
         correct_password = st.secrets.get("ADMIN_PASSWORD", None)
         if correct_password and admin_password == correct_password:
             show_emails = True
