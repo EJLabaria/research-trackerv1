@@ -18,6 +18,11 @@ import streamlit as st
 
 st.set_page_config(page_title="Researcher Tracker", layout="wide")
 
+# Toggle the Cypher (password gate for emails / full row count) on or off.
+# Set to False to temporarily hide the password field entirely -- flip
+# back to True whenever you want it active again.
+ENABLE_CYPHER = False
+
 
 def get_csv_path():
     parser = argparse.ArgumentParser()
@@ -55,8 +60,13 @@ def main():
     # Email column is only ever included in what gets sent to the browser
     # if this password matches -- unauthenticated visitors never receive
     # the email data at all, not even hidden in the page somewhere.
-    show_emails = False
-    if "email" in df.columns:
+    #
+    # When ENABLE_CYPHER is False, everything is unlocked automatically
+    # (no password needed, no row cap) -- used for showcasing the full
+    # dashboard temporarily. Flip ENABLE_CYPHER back to True to restore
+    # the exact same password-gated behavior as before.
+    show_emails = not ENABLE_CYPHER
+    if ENABLE_CYPHER and "email" in df.columns:
         admin_password = st.sidebar.text_input("Enter the Cypher (to see full data)", type="password")
         correct_password = st.secrets.get("ADMIN_PASSWORD", None)
         if correct_password and admin_password == correct_password:
